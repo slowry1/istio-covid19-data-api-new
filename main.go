@@ -8,12 +8,12 @@ import (
 	"time"
 )
 
-var currentCovid19Data string
-var counter int
+var currentCovid19SummaryData string
+var currentCovid19CountriesData string
 var covidUpdateTimeInSeconds time.Duration
 
-func getCovid19Data() {
-	response, err := http.Get("https://api.covid19api.com/all") //"https://api.covid19api.com/all") //"https://api.covid19api.com/live/country/us/status/confirmed") //"https://api.covid19api.com/all") //http.Get("https://api.covid19api.com/") //"https://api.covid19api.com/dayone/country/us/status/confirmed")
+func getCovid19SummaryData() {
+	response, err := http.Get("https://api.covid19api.com/summary")
 	if err != nil {
 		fmt.Printf("The HTTP request failed with error %s\n", err)
 	} else {
@@ -23,11 +23,42 @@ func getCovid19Data() {
 		if err != nil {
 			log.Fatal(err)
 		} else {
-			currentCovid19Data = string(responseData)
-			counter += 1
-			fmt.Println("Number of times the currentCovid19Data has been updated: ", counter)
+			currentCovid19SummaryData = string(responseData)
+			fmt.Println("Current Covid19 Summary data updated!")
 		}
 	}
+}
+
+func getCovid19CountriesData() {
+	response, err := http.Get("https://api.covid19api.com/countries")
+	if err != nil {
+		fmt.Printf("The HTTP request failed with error %s\n", err)
+	} else {
+		// Close the response body when finished with it
+		defer response.Body.Close()
+		responseData, err := ioutil.ReadAll(response.Body)
+		if err != nil {
+			log.Fatal(err)
+		} else {
+			currentCovid19CountriesData = string(responseData)
+			fmt.Println("Current Covid19 Countries data updated!")
+		}
+	}
+}
+
+func covid19Summary(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("content-Type", "application/json")
+	fmt.Fprintf(w, currentCovid19SummaryData)
+}
+
+func covid19Countries(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("content-Type", "application/json")
+	fmt.Fprintf(w, currentCovid19CountriesData)
+}
+
+func handleRequests() {
+	http.HandleFunc("/summary", covid19Summary)
+	http.HandleFunc("/countries", covid19Countries)
 }
 
 func main() {
@@ -60,20 +91,20 @@ func main() {
 	// Set the update timer time so the covid19 data gets updated every X seconds
 	covidUpdateTimeInSeconds = 3600 // 3600 seconds in an hour
 	// Populate currentCovid19Data for the first time to make sure it not empty if someone requests the data
-	getCovid19Data()
+	getCovid19SummaryData()
+	// Populate currentCovid19CountriesData for the first time to make sure it not empty if someone requests the data
+	getCovid19CountriesData()
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("content-Type", "application/json")
-		fmt.Fprintf(w, currentCovid19Data) //string(jsonData))
-	})
+	handleRequests()
 
 	// This is a goroutine for an anonoymous function call that will run asynchronously.
 	// This will start the timer for getting the most current Covid19 data and saving it.
 	// covidUpdateTimeInSeconds is passed to it
 	go func(covidUpdateTime time.Duration) {
 		for true {
-			fmt.Println("Getting covid data     Hello !!")
-			getCovid19Data()
+			fmt.Println("Getting covid data")
+			getCovid19SummaryData()
+			getCovid19CountriesData()
 			time.Sleep(covidUpdateTime * time.Second)
 		}
 	}(covidUpdateTimeInSeconds)
